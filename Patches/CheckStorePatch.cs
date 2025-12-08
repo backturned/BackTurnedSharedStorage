@@ -33,7 +33,7 @@ namespace BackTurnedSharedStorage.Patches
             }
             catch (System.Exception ex)
             {
-                Rocket.Core.Logging.Logger.LogError($"[BackTurnedSharedStorage] Error in CheckStore patch: {ex}");
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in CheckStore patch: {ex}");
             }
 
             return true;

@@ -48,14 +48,14 @@ namespace BackTurnedSharedStorage
                 {
                     harmony.Patch(checkStoreMethod,
                         prefix: new HarmonyMethod(typeof(CheckStorePatch).GetMethod("Prefix")));
-                    Rocket.Core.Logging.Logger.Log("BackTurnedSharedStorage: checkStore method successfully patched!");
                 }
-
-                Rocket.Core.Logging.Logger.Log("BackTurnedSharedStorage plugin successfully loaded!");
+                Rocket.Core.Logging.Logger.Log("BackTurned | SharedStorage: Plugin successfully loaded!");
+                Rocket.Core.Logging.Logger.Log("BackTurned | SharedStorage: You can find more plugins in our Discord channel - https://discord.gg/daysdyHZ7f");
+                Rocket.Core.Logging.Logger.Log("BackTurned | SharedStorage: If you found a bug in the plugin or have suggestions for plugins, you can write in Discord");
             }
             catch (Exception ex)
             {
-                Rocket.Core.Logging.Logger.LogError($"Error loading BackTurnedSharedStorage: {ex}");
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error loading {ex}");
             }
         }
 
@@ -75,7 +75,7 @@ namespace BackTurnedSharedStorage
             playerUsingStorage.Clear();
             storageUsers.Clear();
 
-            Rocket.Core.Logging.Logger.Log("BackTurnedSharedStorage plugin successfully unloaded!");
+            Rocket.Core.Logging.Logger.Log("BackTurned | SharedStorage: plugin successfully unloaded!");
         }
 
         public bool CanPlayerUseStorage(Player player, InteractableStorage storage)
@@ -105,7 +105,7 @@ namespace BackTurnedSharedStorage
             }
             catch (Exception ex)
             {
-                Rocket.Core.Logging.Logger.LogError($"[BackTurnedSharedStorage] Error in CanPlayerUseStorage: {ex}");
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in CanPlayerUseStorage: {ex}");
                 return true;
             }
         }
@@ -133,7 +133,7 @@ namespace BackTurnedSharedStorage
             }
             catch (Exception ex)
             {
-                Rocket.Core.Logging.Logger.LogError($"[BackTurnedSharedStorage] Error in OnStorageOpened: {ex}");
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in OnStorageOpened: {ex}");
             }
         }
 
@@ -165,7 +165,7 @@ namespace BackTurnedSharedStorage
             }
             catch (Exception ex)
             {
-                Rocket.Core.Logging.Logger.LogError($"[BackTurnedSharedStorage] Error in OnStorageClosed: {ex}");
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in OnStorageClosed: {ex}");
             }
         }
 
