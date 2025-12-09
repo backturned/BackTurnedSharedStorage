@@ -19,7 +19,6 @@ namespace BackTurnedSharedStorage
         private readonly Dictionary<CSteamID, InteractableStorage> playerUsingStorage = new Dictionary<CSteamID, InteractableStorage>();
         private readonly Dictionary<InteractableStorage, List<CSteamID>> storageUsers = new Dictionary<InteractableStorage, List<CSteamID>>();
 
-        // Read-only methods
         public bool IsPlayerUsingStorage(CSteamID steamId) => playerUsingStorage.ContainsKey(steamId);
         public InteractableStorage GetPlayerStorage(CSteamID steamId) => playerUsingStorage[steamId];
         public bool TryGetPlayerStorage(CSteamID steamId, out InteractableStorage storage) =>
@@ -49,6 +48,25 @@ namespace BackTurnedSharedStorage
                     harmony.Patch(checkStoreMethod,
                         prefix: new HarmonyMethod(typeof(CheckStorePatch).GetMethod("Prefix")));
                 }
+
+                var inventoryType = typeof(PlayerInventory);
+                var openStorageMethod = inventoryType.GetMethod("openStorage", BindingFlags.Public | BindingFlags.Instance);
+                var closeStorageMethod = inventoryType.GetMethod("closeStorage", BindingFlags.Public | BindingFlags.Instance);
+
+                if (openStorageMethod != null)
+                {
+                    harmony.Patch(openStorageMethod,
+                        postfix: new HarmonyMethod(typeof(SharedStoragePlugin).GetMethod("Postfix_OpenStorage", BindingFlags.NonPublic | BindingFlags.Static)));
+                }
+
+                if (closeStorageMethod != null)
+                {
+                    harmony.Patch(closeStorageMethod,
+                        postfix: new HarmonyMethod(typeof(SharedStoragePlugin).GetMethod("Postfix_CloseStorage", BindingFlags.NonPublic | BindingFlags.Static)));
+                }
+
+                Provider.onEnemyDisconnected += OnPlayerDisconnected;
+
                 Rocket.Core.Logging.Logger.Log("BackTurned | SharedStorage: Plugin successfully loaded!");
                 Rocket.Core.Logging.Logger.Log("BackTurned | SharedStorage: You can find more plugins in our Discord channel - https://discord.gg/daysdyHZ7f");
                 Rocket.Core.Logging.Logger.Log("BackTurned | SharedStorage: If you found a bug in the plugin or have suggestions for plugins, you can write in Discord");
@@ -62,6 +80,7 @@ namespace BackTurnedSharedStorage
         protected override void Unload()
         {
             harmony?.UnpatchAll();
+            Provider.onEnemyDisconnected -= OnPlayerDisconnected;
 
             foreach (var steamId in new List<CSteamID>(playerUsingStorage.Keys))
             {
@@ -76,6 +95,83 @@ namespace BackTurnedSharedStorage
             storageUsers.Clear();
 
             Rocket.Core.Logging.Logger.Log("BackTurned | SharedStorage: plugin successfully unloaded!");
+        }
+        private void OnPlayerDisconnected(SteamPlayer player)
+        {
+            try
+            {
+                if (player?.playerID.steamID != null)
+                {
+                    OnStorageClosed(player.playerID.steamID);
+                }
+            }
+            catch (Exception ex)
+            {
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in OnPlayerDisconnected: {ex}");
+            }
+        }
+
+        private static void Postfix_OpenStorage(PlayerInventory __instance, InteractableStorage newStorage)
+        {
+            try
+            {
+                if (Instance == null || !Instance.Configuration.Instance.Enabled) return;
+
+                if (__instance?.player != null && newStorage != null)
+                {
+                    Instance.OnStorageOpened(__instance.player, newStorage);
+                }
+            }
+            catch (Exception ex)
+            {
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in Postfix_OpenStorage: {ex}");
+            }
+        }
+
+        private static void Postfix_CloseStorage(PlayerInventory __instance)
+        {
+            try
+            {
+                if (Instance == null || !Instance.Configuration.Instance.Enabled) return;
+
+                if (__instance?.player != null)
+                {
+                    Instance.OnStorageClosed(__instance.player);
+                }
+            }
+            catch (Exception ex)
+            {
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in Postfix_CloseStorage: {ex}");
+            }
+        }
+
+        private void OnStorageClosed(CSteamID steamId)
+        {
+            try
+            {
+                if (!Configuration.Instance.Enabled) return;
+
+                if (playerUsingStorage.ContainsKey(steamId))
+                {
+                    InteractableStorage storage = playerUsingStorage[steamId];
+
+                    if (storageUsers.ContainsKey(storage))
+                    {
+                        storageUsers[storage].Remove(steamId);
+
+                        if (storageUsers[storage].Count == 0)
+                        {
+                            storageUsers.Remove(storage);
+                        }
+                    }
+
+                    playerUsingStorage.Remove(steamId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in OnStorageClosed: {ex}");
+            }
         }
 
         public bool CanPlayerUseStorage(Player player, InteractableStorage storage)
@@ -146,63 +242,11 @@ namespace BackTurnedSharedStorage
                 UnturnedPlayer uPlayer = UnturnedPlayer.FromPlayer(player);
                 if (uPlayer == null) return;
 
-                if (playerUsingStorage.ContainsKey(uPlayer.CSteamID))
-                {
-                    InteractableStorage storage = playerUsingStorage[uPlayer.CSteamID];
-
-                    if (storageUsers.ContainsKey(storage))
-                    {
-                        storageUsers[storage].Remove(uPlayer.CSteamID);
-
-                        if (storageUsers[storage].Count == 0)
-                        {
-                            storageUsers.Remove(storage);
-                        }
-                    }
-
-                    playerUsingStorage.Remove(uPlayer.CSteamID);
-                }
+                OnStorageClosed(uPlayer.CSteamID);
             }
             catch (Exception ex)
             {
                 Rocket.Core.Logging.Logger.LogError($"BackTurned | SharedStorage: Error in OnStorageClosed: {ex}");
-            }
-        }
-
-        public void Update()
-        {
-            try
-            {
-                if (!Configuration.Instance.Enabled) return;
-
-                foreach (var steamPlayer in Provider.clients)
-                {
-                    if (steamPlayer?.player != null)
-                    {
-                        var player = steamPlayer.player;
-                        var inventory = player.inventory;
-                        var uPlayer = UnturnedPlayer.FromPlayer(player);
-
-                        if (uPlayer == null) continue;
-
-                        if (inventory.isStoring && inventory.storage != null)
-                        {
-                            if (!playerUsingStorage.ContainsKey(uPlayer.CSteamID) ||
-                                playerUsingStorage[uPlayer.CSteamID] != inventory.storage)
-                            {
-                                OnStorageOpened(player, inventory.storage);
-                            }
-                        }
-                        else if (!inventory.isStoring && playerUsingStorage.ContainsKey(uPlayer.CSteamID))
-                        {
-                            OnStorageClosed(player);
-                        }
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                // Silent catch for update loop
             }
         }
     }
